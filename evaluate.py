@@ -449,5 +449,4 @@ def evaluate_dqn(model_path="results/dqn_spy.pth", ticker="SPY", seed=42, num_ep
 
 
 if __name__ == "__main__":
-    # You can specify num_episodes manually if auto-detection doesn't work
-    evaluate_dqn(num_episodes=1000)  # Change this to your actual episode count
+    evaluate_dqn(num_episodes=500)

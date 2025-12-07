@@ -185,4 +185,4 @@ def train_dqn(
 
 
 if __name__ == "__main__":
-    train_dqn(num_episodes=1000)
+    train_dqn(num_episodes=500)

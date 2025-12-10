@@ -24,8 +24,6 @@ def set_seed(seed=42):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-    print(f"Random seed set to: {seed}")
-
 
 def run_agent(env, model, device):
     state, _ = env.reset()
@@ -39,12 +37,10 @@ def run_agent(env, model, device):
         with torch.no_grad():
             q_values = model(state_tensor)
 
-            # --- MASKING LOGIC START ---
             if env.position == 0:
                 q_values[0, 2] = -float('inf')  # Block Sell
             else:
                 q_values[0, 1] = -float('inf')  # Block Buy
-            # --- MASKING LOGIC END ---
 
             action = q_values.argmax(dim=1).item()
 
@@ -57,16 +53,6 @@ def run_agent(env, model, device):
     return portfolio_values, actions
 
 
-def max_drawdown(values):
-    """
-    Computes maximum drawdown of a portfolio value series.
-    """
-    values = np.array(values)
-    peaks = np.maximum.accumulate(values)
-    drawdowns = (values - peaks) / peaks
-    return drawdowns.min()
-
-
 def calculate_returns(values):
     """Calculate daily returns from portfolio values."""
     values = np.array(values)
@@ -74,81 +60,19 @@ def calculate_returns(values):
     return returns
 
 
-def calculate_rolling_sharpe(returns, window=20, risk_free_rate=0.0):
+def calculate_risk_metrics(agent_returns, benchmark_returns):
     """
-    Calculate rolling Sharpe ratio.
-
-    Args:
-        returns: Array of daily returns
-        window: Rolling window size (default 20 trading days ~ 1 month)
-        risk_free_rate: Daily risk-free rate (default 0)
-
-    Returns:
-        Array of rolling Sharpe ratios (annualized)
-    """
-    rolling_sharpe = []
-
-    for i in range(len(returns)):
-        if i < window - 1:
-            rolling_sharpe.append(np.nan)
-        else:
-            window_returns = returns[i - window + 1:i + 1]
-            excess_returns = window_returns - risk_free_rate
-
-            if np.std(window_returns) > 0:
-                # Annualize: multiply by sqrt(252) for daily returns
-                sharpe = (np.mean(excess_returns) / np.std(window_returns)) * np.sqrt(252)
-            else:
-                sharpe = 0.0
-            rolling_sharpe.append(sharpe)
-
-    return np.array(rolling_sharpe)
-
-
-def calculate_alpha(agent_returns, benchmark_returns, risk_free_rate=0.0):
-    """
-    Calculate Jensen's Alpha using CAPM.
-
-    Alpha = R_p - [R_f + beta * (R_m - R_f)]
-
-    Args:
-        agent_returns: Array of agent's daily returns
-        benchmark_returns: Array of benchmark's daily returns
-        risk_free_rate: Daily risk-free rate
-
-    Returns:
-        alpha (annualized), beta, r_squared
+    Calculate Beta
     """
     # Calculate beta using covariance/variance
     cov_matrix = np.cov(agent_returns, benchmark_returns)
     beta = cov_matrix[0, 1] / cov_matrix[1, 1]
-
-    # Calculate expected return using CAPM
-    avg_agent_return = np.mean(agent_returns)
-    avg_benchmark_return = np.mean(benchmark_returns)
-
-    expected_return = risk_free_rate + beta * (avg_benchmark_return - risk_free_rate)
-
-    # Alpha (daily)
-    alpha_daily = avg_agent_return - expected_return
-
-    # Annualize alpha (252 trading days)
-    alpha_annualized = alpha_daily * 252
-
-    # R-squared
-    correlation = np.corrcoef(agent_returns, benchmark_returns)[0, 1]
-    r_squared = correlation ** 2
-
-    return alpha_annualized, beta, r_squared
+    return beta
 
 
 def get_optimal_actions(prices):
     """
-    Generate 'optimal' actions based on hindsight (for confusion matrix).
-    Buy before price goes up, Sell before price goes down, Hold otherwise.
-
-    Returns:
-        List of optimal actions: 0=Hold, 1=Buy, 2=Sell
+    Generate 'optimal' actions (for confusion matrix).
     """
     optimal_actions = []
     position = 0  # 0 = no position, 1 = holding
@@ -157,25 +81,22 @@ def get_optimal_actions(prices):
         future_return = (prices[i + 1] - prices[i]) / prices[i]
 
         if position == 0:
-            # Not holding - should we buy?
             if future_return > 0.001:  # Threshold for meaningful gain
                 optimal_actions.append(1)  # Buy
                 position = 1
             else:
-                optimal_actions.append(0)  # Hold (stay out)
+                optimal_actions.append(0)  # Hold
         else:
-            # Holding - should we sell?
             if future_return < -0.001:  # Threshold for meaningful loss
                 optimal_actions.append(2)  # Sell
                 position = 0
             else:
-                optimal_actions.append(0)  # Hold (stay in)
+                optimal_actions.append(0)  # Hold
 
-    # Last action is always hold or sell based on position
     if position == 1:
-        optimal_actions.append(2)  # Sell at end
+        optimal_actions.append(2)
     else:
-        optimal_actions.append(0)  # Hold
+        optimal_actions.append(0)
 
     return optimal_actions
 
@@ -184,7 +105,6 @@ def plot_confusion_matrix(agent_actions, optimal_actions, num_episodes):
     """
     Plot confusion matrix comparing agent actions to optimal actions.
     """
-    # Ensure same length
     min_len = min(len(agent_actions), len(optimal_actions))
     agent_actions = agent_actions[:min_len]
     optimal_actions = optimal_actions[:min_len]
@@ -203,7 +123,6 @@ def plot_confusion_matrix(agent_actions, optimal_actions, num_episodes):
     plt.tight_layout()
     plt.show()
 
-    # Print accuracy metrics
     total = cm.sum()
     correct = np.trace(cm)
     accuracy = correct / total if total > 0 else 0
@@ -223,61 +142,11 @@ def plot_confusion_matrix(agent_actions, optimal_actions, num_episodes):
         print(f"{label}: Precision={precision:.2f}, Recall={recall:.2f}")
 
 
-def plot_drawdown(portfolio_values, num_episodes):
-    values = np.array(portfolio_values)
-    running_max = np.maximum.accumulate(values)
-    drawdown = (values - running_max) / running_max
-
-    plt.figure(figsize=(10, 4))
-    plt.plot(drawdown, color='red', alpha=0.7)
-    plt.fill_between(range(len(drawdown)), drawdown, color='red', alpha=0.3)
-    plt.title(f"Portfolio Drawdown (Risk Analysis)\nTrained on {num_episodes} episodes")
-    plt.ylabel("Drawdown %")
-    plt.xlabel("Days")
-    plt.grid()
-    plt.show()
-
-    print(f"Max Drawdown: {drawdown.min() * 100:.2f}%")
-
-
-def plot_rolling_sharpe(agent_returns, benchmark_returns, num_episodes, window=20):
-    """Plot rolling Sharpe ratio for agent vs benchmark."""
-    agent_rolling_sharpe = calculate_rolling_sharpe(agent_returns, window)
-    benchmark_rolling_sharpe = calculate_rolling_sharpe(benchmark_returns, window)
-
-    plt.figure(figsize=(12, 5))
-    plt.plot(agent_rolling_sharpe, label='DQN Agent', color='blue', alpha=0.8)
-    plt.plot(benchmark_rolling_sharpe, label='Buy & Hold', color='gray', linestyle='--', alpha=0.8)
-    plt.axhline(y=0, color='black', linestyle='-', linewidth=0.5)
-    plt.axhline(y=1, color='green', linestyle=':', alpha=0.5, label='Sharpe = 1')
-    plt.axhline(y=-1, color='red', linestyle=':', alpha=0.5, label='Sharpe = -1')
-
-    plt.title(f"Rolling Sharpe Ratio ({window}-day window, Annualized)\nTrained on {num_episodes} episodes")
-    plt.xlabel("Days")
-    plt.ylabel("Sharpe Ratio")
-    plt.legend()
-    plt.grid(alpha=0.3)
-    plt.tight_layout()
-    plt.show()
-
-    # Print summary stats
-    valid_agent = agent_rolling_sharpe[~np.isnan(agent_rolling_sharpe)]
-    valid_benchmark = benchmark_rolling_sharpe[~np.isnan(benchmark_rolling_sharpe)]
-
-    print(f"\n===== ROLLING SHARPE STATISTICS =====")
-    print(f"Agent - Mean: {np.mean(valid_agent):.2f}, Std: {np.std(valid_agent):.2f}")
-    print(f"Benchmark - Mean: {np.mean(valid_benchmark):.2f}, Std: {np.std(valid_benchmark):.2f}")
-    print(f"% of days Agent Sharpe > Benchmark: {(valid_agent > valid_benchmark).mean() * 100:.1f}%")
-
-
 def get_num_episodes(model_path):
     """
     Try to get number of training episodes from various sources.
     """
-    # Try to find a training log or config file
     results_dir = os.path.dirname(model_path)
-
-    # Check for common log file patterns
     possible_files = [
         os.path.join(results_dir, 'training_config.json'),
         os.path.join(results_dir, 'training_log.json'),
@@ -299,33 +168,23 @@ def get_num_episodes(model_path):
             except:
                 pass
 
-    # If no config found, try to extract from model filename
-    # e.g., "dqn_spy_500ep.pth" or "model_1000.pth"
     model_name = os.path.basename(model_path)
     import re
     match = re.search(r'(\d+)(?:ep|episodes?|_)', model_name)
     if match:
         return int(match.group(1))
 
-    # Default value if nothing found
     return "Unknown"
 
 
-def evaluate_dqn(model_path="results/dqn_spy.pth", ticker="SPY", seed=42, num_episodes=None):
+def evaluate_dqn(model_path="code/results/dqn_spy.pth", ticker="SPY", seed=42, num_episodes=None):
     """
-    Enhanced evaluation with confusion matrix, alpha, and rolling Sharpe ratio.
-
-    Args:
-        model_path: Path to trained model
-        ticker: Stock ticker symbol
-        seed: Random seed
-        num_episodes: Number of training episodes (will try to auto-detect if None)
+    Enhanced evaluation with confusion matrix and active return.
     """
     set_seed(seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Using device:", device)
 
-    # Get number of episodes
     if num_episodes is None:
         num_episodes = get_num_episodes(model_path)
 
@@ -371,13 +230,16 @@ def evaluate_dqn(model_path="results/dqn_spy.pth", ticker="SPY", seed=42, num_ep
     agent_return = (portfolio_values[-1] - 10000) / 10000
     bnh_return = (buy_hold_values[-1] - 10000) / 10000
 
+    # --- Alpha ---
+    active_return = agent_return - bnh_return
+
     print("\n===== PERFORMANCE METRICS =====")
     print(f"Agent Return:      {agent_return * 100:.2f}%")
     print(f"Buy & Hold Return: {bnh_return * 100:.2f}%")
+    print(f"Active Return:     {active_return * 100:.2f}%")
     print(f"Final Value:       ${portfolio_values[-1]:.2f}")
 
     # --- CALCULATE RETURNS ---
-    # Ensure both arrays have the same length
     min_len = min(len(portfolio_values), len(buy_hold_values))
     portfolio_values_aligned = portfolio_values[:min_len]
     buy_hold_values_aligned = buy_hold_values[:min_len]
@@ -387,18 +249,11 @@ def evaluate_dqn(model_path="results/dqn_spy.pth", ticker="SPY", seed=42, num_ep
 
     print(f"\nData points: {min_len} days, {len(agent_returns)} return observations")
 
-    # --- ALPHA & BETA ---
-    alpha, beta, r_squared = calculate_alpha(agent_returns, benchmark_returns)
+    # --- BETA ---
+    beta = calculate_risk_metrics(agent_returns, benchmark_returns)
 
-    print("\n===== ALPHA & BETA ANALYSIS =====")
-    print(f"Jensen's Alpha (annualized): {alpha * 100:.2f}%")
+    print("\n===== RISK ANALYSIS =====")
     print(f"Beta: {beta:.3f}")
-    print(f"R-squared: {r_squared:.3f}")
-
-    if alpha > 0:
-        print("→ Positive alpha indicates the agent outperformed on a risk-adjusted basis")
-    else:
-        print("→ Negative alpha indicates the agent underperformed on a risk-adjusted basis")
 
     if beta > 1:
         print(f"→ Beta > 1 means the agent is more volatile than the market")
@@ -421,8 +276,7 @@ def evaluate_dqn(model_path="results/dqn_spy.pth", ticker="SPY", seed=42, num_ep
     print(f"Benchmark Sharpe Ratio (annualized): {overall_sharpe_benchmark:.3f}")
 
     # --- PLOTS ---
-
-    # 1. Portfolio Performance
+    # 1. Portfolio Performance Only
     plt.figure(figsize=(12, 6))
     plt.plot(portfolio_values_aligned, label="DQN Agent", color='blue')
     plt.plot(buy_hold_values_aligned, label="Buy & Hold", color='gray', linestyle='--')
@@ -433,13 +287,7 @@ def evaluate_dqn(model_path="results/dqn_spy.pth", ticker="SPY", seed=42, num_ep
     plt.grid()
     plt.show()
 
-    # 2. Drawdown
-    plot_drawdown(portfolio_values_aligned, num_episodes)
-
-    # 3. Rolling Sharpe Ratio
-    plot_rolling_sharpe(agent_returns, benchmark_returns, num_episodes, window=20)
-
-    # 4. Confusion Matrix
+    # 2. Confusion Matrix
     prices = test_df["Close"].values[:min_len]
     optimal_actions = get_optimal_actions(prices)
     actions_aligned = actions[:min_len]

@@ -1,7 +1,6 @@
 import random
 import numpy as np
 import torch
-import torch.nn as nn
 
 from utils.data_preprocessing import get_train_test_data
 from env.trading_env import TradingEnv
@@ -185,4 +184,4 @@ def train_dqn(
 
 
 if __name__ == "__main__":
-    train_dqn(num_episodes=500)
+    train_dqn(num_episodes=50)

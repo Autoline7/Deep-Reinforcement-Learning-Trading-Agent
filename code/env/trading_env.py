@@ -70,8 +70,7 @@ class TradingEnv(gym.Env):
     def reset(self, seed=42, options=None):
         super().reset(seed=seed)
 
-        # FIX: Random start index to prevent memorizing the dataset
-        # Leave enough space for a decent episode length (e.g., 200 steps)
+        # Random start index to prevent memorizing the dataset
         max_steps = len(self.df) - 500
         if max_steps > 0:
             self.current_step = np.random.randint(0, max_steps)
@@ -106,7 +105,7 @@ class TradingEnv(gym.Env):
                 self.shares = (self.cash - cost) / price
                 self.cash = 0
             else:
-                reward -= 0.1  # CHANGED: Was -1.0 (Too harsh), now -0.1
+                reward -= 0.1
 
         # SELL
         elif action == 2:
@@ -117,7 +116,7 @@ class TradingEnv(gym.Env):
                 self.shares = 0
                 self.position = 0
             else:
-                reward -= 0.1  # CHANGED: Was -1.0 (Too harsh), now -0.1
+                reward -= 0.1
 
         # Advance step
         self.current_step += 1
@@ -126,8 +125,7 @@ class TradingEnv(gym.Env):
         # Reward: Portfolio Value Change
         curr_value = self._get_portfolio_value()
 
-        # SCALING: Multiply by 100 so a 1% gain looks like "+1.0" reward
-        # to the neural network, which helps it learn faster.
+        # SCALING
         reward += ((curr_value - prev_value) / prev_value) * 100
 
         return self._get_state(), float(reward), done, False, {}

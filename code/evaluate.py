@@ -177,7 +177,7 @@ def get_num_episodes(model_path):
     return "Unknown"
 
 
-def evaluate_dqn(model_path="code/results/dqn_spy.pth", ticker="SPY", seed=42, num_episodes=None):
+def evaluate_dqn(model_path="results/dqn_spy.pth", ticker="SPY", seed=42, num_episodes=None):
     """
     Enhanced evaluation with confusion matrix and active return.
     """

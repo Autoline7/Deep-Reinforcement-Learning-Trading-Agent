@@ -175,7 +175,7 @@ def train_dqn(
             f"Epsilon: {epsilon:.4f}"
         )
 
-    # --------- Save model and logs ---------
+
     torch.save(policy_net.state_dict(), "results/dqn_spy.pth")
     np.save("results/episode_rewards.npy", np.array(episode_rewards))
     np.save("results/episode_final_values.npy", np.array(episode_final_values))
@@ -184,4 +184,4 @@ def train_dqn(
 
 
 if __name__ == "__main__":
-    train_dqn(num_episodes=50)
+    train_dqn(num_episodes=500)

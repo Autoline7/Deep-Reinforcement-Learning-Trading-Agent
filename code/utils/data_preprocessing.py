@@ -77,7 +77,7 @@ def get_train_test_data(ticker="SPY", train_ratio=0.8):
         "Open", "High", "Low", "Close", "Volume",
         "RSI", "MACD", "MACD_signal", "MACD_hist",
         "SMA_20", "SMA_50", "BB_high", "BB_low", "Returns",
-        "VIX", "TNX", "ATR", "OBV"  # <--- Added here
+        "VIX", "TNX", "ATR", "OBV"
     ]
 
     # Scale based on TRAIN only

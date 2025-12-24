@@ -5,17 +5,13 @@
 .
 ├── code/
 │   ├── utils/
-│   │   ├── data_preprocessing.py
-│   │   └── __pycache__/
+│   │   └── data_preprocessing.py
 │   ├── agent/
 │   │   ├── dqn.py
-│   │   ├── replay_buffer.py
-│   │   └── __pycache__/
+│   │   └── replay_buffer.py
 │   ├── env/
-│   │   ├── trading_env.py
-│   │   └── __pycache__/
+│   │   └── trading_env.py
 │   ├── results/
-│   │   ├── performance_chart.png
 │   │   ├── dqn_spy.pth
 │   │   ├── episode_final_values.npy
 │   │   ├── episode_rewards.npy
